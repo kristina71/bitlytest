@@ -1,0 +1,4 @@
+development:
+    dialect: postgres
+    datasource: postgresql://postgres:postgres@localhost:5432/bitlytest?sslmode=disable
+    dir: migrations/
