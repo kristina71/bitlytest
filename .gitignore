@@ -1,3 +1,4 @@
 .vscode/
 bitlytest
 .DS_Store
+allure-results/

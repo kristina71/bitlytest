@@ -1,33 +1,24 @@
 package config
 
-type DbConfig struct {
-	Host     string
-	User     string
-	Password string
-	DbName   string
-	Sslmode  string
-	Port     string
-	DbPort   string
+import "os"
+
+type Cfg struct {
+	DbDsn     string
+	DbDialect string
 }
 
-const (
-	host     = "localhost"
-	user     = "postgres"
-	password = ""
-	dbName   = "bitlytest"
-	sslmode  = "disable"
-	port     = "8000"
-	dbPort   = "5432"
-)
-
-func New() DbConfig {
-	return DbConfig{
-		Host:     host,
-		User:     user,
-		Password: password,
-		DbName:   dbName,
-		Sslmode:  sslmode,
-		Port:     port,
-		DbPort:   dbPort,
+func New() Cfg {
+	return Cfg{
+		DbDsn:     readFromEnv("DB_DSN", "postgresql://postgres:postgres@localhost:5432/bitlytest?sslmode=disable"),
+		DbDialect: readFromEnv("DB_DIALECT", "postgres"),
 	}
+}
+
+func readFromEnv(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		value = defaultValue
+	}
+
+	return value
 }

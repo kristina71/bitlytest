@@ -1,11 +1,14 @@
-package storage
+package adapters
 
 import (
-	"bitlytest/pkg/config"
-	"bitlytest/pkg/models"
+	"context"
 	"database/sql"
-	"fmt"
 	"log"
+	"time"
+
+	"github.com/kristina71/bitlytest/pkg/config"
+	"github.com/kristina71/bitlytest/pkg/models"
+	"github.com/pkg/errors"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
@@ -23,8 +26,15 @@ const (
 	tableName = "bitlytest"
 )
 
-func (s *Storage) Insert(url models.Url) (uint16, error) {
-	query, args, err := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).Insert(tableName).Columns("small_url", "origin_url").Values(url.SmallUrl, url.OriginUrl).Suffix("RETURNING \"id\"").ToSql()
+func (s *Storage) Insert(ctx context.Context, url models.Url) (uint16, error) {
+	if url.CreatedAt.IsZero() {
+		url.CreatedAt = time.Now().UTC()
+	}
+	if url.UpdateAt.IsZero() {
+		url.UpdateAt = time.Now().UTC()
+	}
+
+	query, args, err := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).Insert(tableName).Columns("small_url", "origin_url", "created_at", "updated_at").Values(url.SmallUrl, url.OriginUrl, url.CreatedAt, url.UpdateAt).Suffix("RETURNING \"id\"").ToSql()
 	if err != nil {
 		log.Println(err)
 		return 0, err
@@ -35,7 +45,7 @@ func (s *Storage) Insert(url models.Url) (uint16, error) {
 	return id, err
 }
 
-func (s *Storage) Update(url models.Url) error {
+func (s *Storage) Update(ctx context.Context, url models.Url) error {
 	query, args, err := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).Update(tableName).Set("small_url", url.SmallUrl).Set("origin_url", url.OriginUrl).Where(squirrel.Eq{"id": url.Id}).ToSql()
 	if err != nil {
 		log.Println(err)
@@ -45,7 +55,7 @@ func (s *Storage) Update(url models.Url) error {
 	return err
 }
 
-func (s *Storage) Delete(url models.Url) error {
+func (s *Storage) Delete(ctx context.Context, url models.Url) error {
 	query, args, err := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).Delete(tableName).Where(squirrel.Eq{"id": url.Id}).ToSql()
 	if err != nil {
 		log.Println(err)
@@ -55,7 +65,7 @@ func (s *Storage) Delete(url models.Url) error {
 	return err
 }
 
-func (s *Storage) Get() ([]models.Url, error) {
+func (s *Storage) Get(ctx context.Context) ([]models.Url, error) {
 	query, _, err := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).Select("id", "small_url", "origin_url").From(tableName).ToSql()
 	if err != nil {
 		log.Println(err)
@@ -65,79 +75,33 @@ func (s *Storage) Get() ([]models.Url, error) {
 	urls := []models.Url{}
 	err = s.db.Select(&urls, query)
 
-	/*rows, err := s.db.Query(query)*/
-
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
 
-	/*var (
-		id         uint16
-		small_url  string
-		origin_url string
-	)*/
-
-	/*defer rows.Close()
-
-	urls := []models.Url{}
-	for rows.Next() {
-		err := rows.Scan(&id, &small_url, &origin_url)
-		if err != nil {
-			log.Println(err)
-			return nil, err
-		}
-
-		urls = append(urls, models.Url{
-			Id:        id,
-			SmallUrl:  small_url,
-			OriginUrl: origin_url,
-		})
-
-		log.Println(id, small_url, origin_url)
-	}
-	err = rows.Err()
-	if err != nil {
-		log.Println(err)
-		return nil, err
-	}
-	*/
 	return urls, nil
 }
 
-func (s *Storage) GetBySmallUrl(url models.Url) (models.Url, error) {
+func (s *Storage) GetBySmallUrl(ctx context.Context, url models.Url) (models.Url, error) {
 	query, args, err := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).Select("id", "small_url", "origin_url").From(tableName).Where(squirrel.Eq{"small_url": url.SmallUrl}).ToSql()
 	if err != nil {
 		log.Println(err)
 		return models.Url{}, err
 	}
-	/*var (
-		id         uint16
-		small_url  string
-		origin_url string
-	)*/
 
-	//err = s.db.QueryRow(query, args...).Scan(&id, &small_url, &origin_url)
 	url = models.Url{}
 	err = s.db.Get(&url, query, args...)
 
 	if err == sql.ErrNoRows {
-		return models.Url{}, models.ErrNotFound
+		return models.Url{}, errors.WithStack(models.NotFound{})
 	}
 
 	return url, err
-	/*return models.Url{
-		Id:        id,
-		SmallUrl:  small_url,
-		OriginUrl: origin_url,
-	}, err*/
 }
 
-func DBConnect(cfg config.DbConfig) *sqlx.DB {
-	//читать из dbconfig?
-	//пока нет
-	psql := fmt.Sprintf("postgresql://postgres:%s@%s:%s/%s?sslmode=%s", cfg.User, cfg.Host, cfg.DbPort, cfg.DbName, cfg.Sslmode)
-	db, err := sqlx.Connect("postgres", psql)
+func DBConnect(cfg config.Cfg) *sqlx.DB {
+	db, err := sqlx.Connect(cfg.DbDialect, cfg.DbDsn)
 	if err != nil {
 		log.Println(err)
 	}

@@ -1,16 +1,20 @@
 package tests
 
 import (
-	"bitlytest/pkg/config"
-	"bitlytest/pkg/models"
-	"bitlytest/pkg/router"
-	"bitlytest/pkg/storage"
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/kristina71/bitlytest/pkg/adapters"
+	"github.com/kristina71/bitlytest/pkg/config"
+	"github.com/kristina71/bitlytest/pkg/endpoints"
+	"github.com/kristina71/bitlytest/pkg/models"
+	"github.com/kristina71/bitlytest/pkg/repositories"
+	"github.com/kristina71/bitlytest/pkg/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,6 +24,7 @@ type testCase struct {
 	body             models.Url
 	error_checker    func(t require.TestingT, err error, msgAndArgs ...interface{})
 	db_error_checker func(t require.TestingT, err error, msgAndArgs ...interface{})
+	insert           bool
 }
 
 type testCaseAll struct {
@@ -30,20 +35,24 @@ type testCaseAll struct {
 	db_error_checker func(t require.TestingT, err error, msgAndArgs ...interface{})
 }
 
-func TestCreate(t *testing.T) {
+func TestCreate1(t *testing.T) {
 	cfg := config.New()
-	db := storage.DBConnect(cfg)
-	s := storage.New(db)
+	db := adapters.DBConnect(cfg)
+	adapters := adapters.New(db)
+	repo := repositories.New(adapters)
+	service := service.New(repo)
 
-	ts := httptest.NewServer(router.NewRouter(db))
+	ts := httptest.NewServer(endpoints.New(service))
 	defer ts.Close()
 
 	testCases := []testCase{
 		{
-			name: "Edit item",
+			name: "Item",
 			body: models.Url{
-				SmallUrl:  "test2221",
-				OriginUrl: "http://google.ru/test2221",
+				SmallUrl:  "test22211",
+				OriginUrl: "http://google.ru/test22211",
+				CreatedAt: time.Now(),
+				UpdateAt:  time.Now(),
 			},
 			expected_status:  http.StatusOK,
 			error_checker:    require.NoError,
@@ -54,6 +63,8 @@ func TestCreate(t *testing.T) {
 			body: models.Url{
 				SmallUrl:  "",
 				OriginUrl: "http://google.ru/test",
+				CreatedAt: time.Now(),
+				UpdateAt:  time.Now(),
 			},
 			expected_status:  http.StatusBadRequest,
 			error_checker:    require.NoError,
@@ -64,6 +75,8 @@ func TestCreate(t *testing.T) {
 			body: models.Url{
 				SmallUrl:  "fdfdfg",
 				OriginUrl: "",
+				CreatedAt: time.Now(),
+				UpdateAt:  time.Now(),
 			},
 			expected_status:  http.StatusBadRequest,
 			error_checker:    require.NoError,
@@ -74,6 +87,8 @@ func TestCreate(t *testing.T) {
 			body: models.Url{
 				SmallUrl:  "fdfdfg",
 				OriginUrl: "/",
+				CreatedAt: time.Now(),
+				UpdateAt:  time.Now(),
 			},
 			expected_status:  http.StatusBadRequest,
 			error_checker:    require.NoError,
@@ -92,7 +107,8 @@ func TestCreate(t *testing.T) {
 				require.NoError(t, err)
 				defer resp.Body.Close()
 
-				dbResult, err := s.GetBySmallUrl(testCase.body)
+				//не через адаптер а через сервис
+				dbResult, err := adapters.GetBySmallUrl(context.Background(), testCase.body)
 				testCase.db_error_checker(t, err)
 
 				if err == nil {
@@ -109,12 +125,14 @@ func TestCreate(t *testing.T) {
 	}
 }
 
-func TestGetAll(t *testing.T) {
+func TestGetAll1(t *testing.T) {
 	cfg := config.New()
-	db := storage.DBConnect(cfg)
-	s := storage.New(db)
+	db := adapters.DBConnect(cfg)
+	adapters := adapters.New(db)
+	repo := repositories.New(adapters)
+	service := service.New(repo)
 
-	ts := httptest.NewServer(router.NewRouter(db))
+	ts := httptest.NewServer(endpoints.New(service))
 	defer ts.Close()
 
 	testCases := []testCaseAll{
@@ -125,11 +143,15 @@ func TestGetAll(t *testing.T) {
 					Id:        1,
 					SmallUrl:  "dfgdfg",
 					OriginUrl: "http://google.com",
+					CreatedAt: time.Now(),
+					UpdateAt:  time.Now(),
 				},
 				{
 					Id:        2,
 					SmallUrl:  "dfgddsfdsffg",
 					OriginUrl: "http://yandex.ru",
+					CreatedAt: time.Now(),
+					UpdateAt:  time.Now(),
 				},
 			},
 			expected_status:  http.StatusOK,
@@ -155,7 +177,8 @@ func TestGetAll(t *testing.T) {
 				require.NoError(t, err)
 				defer resp.Body.Close()
 
-				dbResult, err := s.Get()
+				//не через адаптер а через сервис
+				dbResult, err := adapters.Get(context.TODO())
 				testCase.db_error_checker(t, err)
 
 				if err == nil {

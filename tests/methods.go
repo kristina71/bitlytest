@@ -1,11 +1,12 @@
 package tests
 
 import (
-	"bitlytest/pkg/models"
 	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+
+	"github.com/kristina71/bitlytest/pkg/models"
 )
 
 func DeleteItem(ts *httptest.Server, url models.Url) error {

@@ -1,9 +1,6 @@
 package service_test
 
 import (
-	"bitlytest/mocks"
-	"bitlytest/pkg/models"
-	"bitlytest/pkg/service"
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
@@ -11,10 +8,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/kristina71/bitlytest/mocks"
+	"github.com/kristina71/bitlytest/pkg/models"
+	"github.com/kristina71/bitlytest/pkg/service"
+
 	"github.com/stretchr/testify/require"
 )
 
-//дописать негативные проверки на err
 type testCase struct {
 	name         string
 	expectedUrls []models.Url

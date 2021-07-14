@@ -3,7 +3,7 @@
 package mocks
 
 import (
-	models "bitlytest/pkg/models"
+	models "github.com/kristina71/bitlytest/pkg/models"
 	mock "github.com/stretchr/testify/mock"
 )
 
