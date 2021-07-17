@@ -45,7 +45,7 @@ func TestCreate(t *testing.T) {
 				SmallUrl:  "test22211",
 				OriginUrl: "http://google.ru/gfdgdfgdf",
 			},
-			expected_status:  http.StatusInternalServerError, //http.StatusBadRequest
+			expected_status:  http.StatusBadRequest,
 			error_checker:    require.NoError,
 			db_error_checker: require.Error,
 		},
@@ -55,7 +55,7 @@ func TestCreate(t *testing.T) {
 				SmallUrl:  "",
 				OriginUrl: "http://google.ru/test",
 			},
-			expected_status:  http.StatusInternalServerError, //http.StatusBadRequest
+			expected_status:  http.StatusBadRequest,
 			error_checker:    require.NoError,
 			db_error_checker: require.Error,
 		},
@@ -65,7 +65,7 @@ func TestCreate(t *testing.T) {
 				SmallUrl:  "fdfdfg",
 				OriginUrl: "",
 			},
-			expected_status:  http.StatusInternalServerError, //http.StatusBadRequest
+			expected_status:  http.StatusBadRequest,
 			error_checker:    require.NoError,
 			db_error_checker: require.Error,
 		},
@@ -75,7 +75,7 @@ func TestCreate(t *testing.T) {
 				SmallUrl:  "fdfdfg",
 				OriginUrl: "/",
 			},
-			expected_status:  http.StatusInternalServerError, //http.StatusBadRequest
+			expected_status:  http.StatusBadRequest,
 			error_checker:    require.NoError,
 			db_error_checker: require.Error,
 		},
@@ -136,10 +136,8 @@ func TestGetBySmallUrl(t *testing.T) {
 				SmallUrl:  "test22211",
 				OriginUrl: "http://google.ru",
 			},
-			expected_status:  http.StatusNotFound,
-			error_checker:    require.Error,
-			db_error_checker: require.NoError,
-			insert:           false,
+			expected_status: http.StatusNotFound,
+			insert:          false,
 		},
 	}
 
@@ -182,7 +180,7 @@ func TestUpdate(t *testing.T) {
 
 	testCases := []testCase{
 		{
-			name: "Item",
+			name: "Update item",
 			body: models.Url{
 				SmallUrl:  "test22211",
 				OriginUrl: "http://google.ru",
@@ -190,6 +188,19 @@ func TestUpdate(t *testing.T) {
 			expected_status:  http.StatusPermanentRedirect,
 			error_checker:    require.NoError,
 			db_error_checker: require.NoError,
+			insert:           true,
+		},
+		{
+			name: "Update item with incorrect id",
+			body: models.Url{
+				Id:        0,
+				SmallUrl:  "test22211",
+				OriginUrl: "http://google.ru",
+			},
+			expected_status:  http.StatusPermanentRedirect,
+			error_checker:    require.NoError,
+			db_error_checker: require.NoError,
+			insert:           false,
 		},
 	}
 
@@ -198,10 +209,12 @@ func TestUpdate(t *testing.T) {
 			testCase.name, func(t *testing.T) {
 				defer clean(db, t)
 
-				id, err := adapters.Insert(context.Background(), testCase.body)
-				require.NoError(t, err)
+				if testCase.insert == true {
+					id, err := adapters.Insert(context.Background(), testCase.body)
+					testCase.db_error_checker(t, err)
+					testCase.body.Id = id
+				}
 
-				testCase.body.Id = id
 				testCase.body.SmallUrl = testCase.body.SmallUrl + "11"
 				resp, err := EditItem(ts, testCase.body)
 				require.NoError(t, err)
@@ -215,15 +228,19 @@ func TestUpdate(t *testing.T) {
 				require.NoError(t, err)
 
 				item, err := adapters.GetBySmallUrl(context.Background(), testCase.body)
-				require.NoError(t, err)
+				if testCase.insert == true {
+					require.NoError(t, err)
 
-				require.Equal(t, item.SmallUrl, url.SmallUrl)
-				require.Equal(t, item.OriginUrl, url.OriginUrl)
-				require.Equal(t, item.Id, url.Id)
+					require.Equal(t, item.SmallUrl, url.SmallUrl)
+					require.Equal(t, item.OriginUrl, url.OriginUrl)
+					require.Equal(t, item.Id, url.Id)
 
-				require.Equal(t, testCase.body.SmallUrl, url.SmallUrl)
-				require.Equal(t, testCase.body.OriginUrl, url.OriginUrl)
-				require.Equal(t, testCase.body.Id, url.Id)
+					require.Equal(t, testCase.body.SmallUrl, url.SmallUrl)
+					require.Equal(t, testCase.body.OriginUrl, url.OriginUrl)
+					require.Equal(t, testCase.body.Id, url.Id)
+				} else {
+					require.Error(t, err)
+				}
 			})
 	}
 }
@@ -240,14 +257,29 @@ func TestDelete(t *testing.T) {
 
 	testCases := []testCase{
 		{
-			name: "Item",
+			name: "Delete item",
 			body: models.Url{
 				SmallUrl:  "test22211",
 				OriginUrl: "http://google.ru",
 			},
+			insert:           true,
 			expected_status:  http.StatusPermanentRedirect,
-			error_checker:    require.NoError,
 			db_error_checker: require.NoError,
+		},
+		{
+			name: "Try to delete not existing url",
+			body: models.Url{
+				SmallUrl:  "test22211",
+				OriginUrl: "http://google.ru",
+			},
+			insert:          false,
+			expected_status: http.StatusPermanentRedirect,
+		},
+		{
+			name:            "Try to delete with empty body",
+			body:            models.Url{},
+			insert:          false,
+			expected_status: http.StatusPermanentRedirect,
 		},
 	}
 
@@ -256,11 +288,13 @@ func TestDelete(t *testing.T) {
 			testCase.name, func(t *testing.T) {
 				defer clean(db, t)
 
-				id, err := adapters.Insert(context.Background(), testCase.body)
-				require.NoError(t, err)
-				testCase.body.Id = id
+				if testCase.insert == true {
+					id, err := adapters.Insert(context.Background(), testCase.body)
+					testCase.db_error_checker(t, err)
+					testCase.body.Id = id
+				}
 
-				err = DeleteItem(ts, testCase.body)
+				err := DeleteItem(ts, testCase.body)
 				require.NoError(t, err)
 
 				_, err = adapters.GetBySmallUrl(context.Background(), testCase.body)

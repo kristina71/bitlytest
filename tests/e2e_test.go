@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/kristina71/bitlytest/pkg/adapters"
 	"github.com/kristina71/bitlytest/pkg/config"
@@ -35,7 +34,7 @@ type testCaseAll struct {
 	db_error_checker func(t require.TestingT, err error, msgAndArgs ...interface{})
 }
 
-func TestCreate1(t *testing.T) {
+func TestCreateAndGetUrlBySmall(t *testing.T) {
 	cfg := config.New()
 	db := adapters.DBConnect(cfg)
 	adapters := adapters.New(db)
@@ -51,8 +50,6 @@ func TestCreate1(t *testing.T) {
 			body: models.Url{
 				SmallUrl:  "test22211",
 				OriginUrl: "http://google.ru/test22211",
-				CreatedAt: time.Now(),
-				UpdateAt:  time.Now(),
 			},
 			expected_status:  http.StatusOK,
 			error_checker:    require.NoError,
@@ -63,8 +60,6 @@ func TestCreate1(t *testing.T) {
 			body: models.Url{
 				SmallUrl:  "",
 				OriginUrl: "http://google.ru/test",
-				CreatedAt: time.Now(),
-				UpdateAt:  time.Now(),
 			},
 			expected_status:  http.StatusBadRequest,
 			error_checker:    require.NoError,
@@ -75,8 +70,6 @@ func TestCreate1(t *testing.T) {
 			body: models.Url{
 				SmallUrl:  "fdfdfg",
 				OriginUrl: "",
-				CreatedAt: time.Now(),
-				UpdateAt:  time.Now(),
 			},
 			expected_status:  http.StatusBadRequest,
 			error_checker:    require.NoError,
@@ -87,8 +80,6 @@ func TestCreate1(t *testing.T) {
 			body: models.Url{
 				SmallUrl:  "fdfdfg",
 				OriginUrl: "/",
-				CreatedAt: time.Now(),
-				UpdateAt:  time.Now(),
 			},
 			expected_status:  http.StatusBadRequest,
 			error_checker:    require.NoError,
@@ -108,7 +99,7 @@ func TestCreate1(t *testing.T) {
 				defer resp.Body.Close()
 
 				//не через адаптер а через сервис
-				dbResult, err := adapters.GetBySmallUrl(context.Background(), testCase.body)
+				url1, err := service.GetUrl(context.Background(), testCase.body)
 				testCase.db_error_checker(t, err)
 
 				if err == nil {
@@ -116,7 +107,7 @@ func TestCreate1(t *testing.T) {
 					err = json.Unmarshal(body, &url)
 					require.NoError(t, err)
 
-					require.Equal(t, dbResult, url)
+					require.Equal(t, url1, url)
 
 					err = DeleteItem(ts, url)
 					require.NoError(t, err)
@@ -125,7 +116,7 @@ func TestCreate1(t *testing.T) {
 	}
 }
 
-func TestGetAll1(t *testing.T) {
+func TestCreateAndGetUrls(t *testing.T) {
 	cfg := config.New()
 	db := adapters.DBConnect(cfg)
 	adapters := adapters.New(db)
@@ -137,21 +128,17 @@ func TestGetAll1(t *testing.T) {
 
 	testCases := []testCaseAll{
 		{
-			name: "Edit item",
+			name: "Get all urls",
 			body: []models.Url{
 				{
 					Id:        1,
-					SmallUrl:  "dfgdfg",
+					SmallUrl:  "dfgdfgdf",
 					OriginUrl: "http://google.com",
-					CreatedAt: time.Now(),
-					UpdateAt:  time.Now(),
 				},
 				{
 					Id:        2,
-					SmallUrl:  "dfgddsfdsffg",
+					SmallUrl:  "dfgddsfdfgdfsffg",
 					OriginUrl: "http://yandex.ru",
-					CreatedAt: time.Now(),
-					UpdateAt:  time.Now(),
 				},
 			},
 			expected_status:  http.StatusOK,
@@ -178,7 +165,7 @@ func TestGetAll1(t *testing.T) {
 				defer resp.Body.Close()
 
 				//не через адаптер а через сервис
-				dbResult, err := adapters.Get(context.TODO())
+				url1, err := service.GetAllUrl(context.TODO())
 				testCase.db_error_checker(t, err)
 
 				if err == nil {
@@ -186,7 +173,7 @@ func TestGetAll1(t *testing.T) {
 					err = json.Unmarshal(body, &url)
 					require.NoError(t, err)
 
-					require.Equal(t, dbResult, url)
+					require.Equal(t, url1, url)
 
 					err = DeleteItem(ts, url[0])
 					require.NoError(t, err)

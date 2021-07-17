@@ -1,11 +1,7 @@
 package service_test
 
 import (
-	"bytes"
-	"encoding/json"
-	"io/ioutil"
-	"net/http"
-	"net/http/httptest"
+	"context"
 	"testing"
 
 	"github.com/kristina71/bitlytest/mocks"
@@ -41,42 +37,38 @@ func TestGetBySmallUrl(t *testing.T) {
 				OriginUrl: "http://google.com",
 			},
 		},
-		/*{
+		{
 			name: "Get link by small url with slash",
 			expectedUrl: models.Url{
 				Id:        1,
 				SmallUrl:  "/dfgdfg",
 				OriginUrl: "http://google.com",
 			},
-		},*/
-		/*{
+		},
+		{
 			name: "Get link with slash",
 			expectedUrl: models.Url{
 				Id:        1,
 				SmallUrl:  "/",
 				OriginUrl: "http://google.com",
 			},
-		},*/
+		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			storage := &mocks.Storage{}
-			service := service.New(storage)
+			repo := &mocks.Repository{}
+			service := service.New(repo)
 
-			storage.On("GetBySmallUrl", models.Url{
+			url := models.Url{
 				SmallUrl: testCase.expectedUrl.SmallUrl,
-			}).Return(testCase.expectedUrl, nil)
+			}
+			repo.On("GetBySmallUrl", context.Background(), url).Return(testCase.expectedUrl, nil)
 
-			req := httptest.NewRequest(http.MethodGet, "http://localhost:8000/"+testCase.expectedUrl.SmallUrl, nil)
-			recorder := httptest.NewRecorder()
+			resUrl, err := service.GetUrl(context.Background(), url)
+			require.NoError(t, err)
 
-			service.GetUrl(recorder, req)
-			resp := recorder.Result()
-			require.NotNil(t, resp)
-
-			require.Equal(t, http.StatusMovedPermanently, resp.StatusCode)
-			require.Equal(t, testCase.expectedUrl.OriginUrl, resp.Header.Get("Location"))
+			require.Equal(t, testCase.expectedUrl, resUrl)
 		})
 	}
 }
@@ -137,28 +129,15 @@ func TestGetUrl(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			storage := &mocks.Storage{}
-			service := service.New(storage)
-			storage.On("Get").Return(testCase.expectedUrls, nil)
+			repo := &mocks.Repository{}
+			service := service.New(repo)
 
-			var jsonStr = []byte(`{}`)
-			req := httptest.NewRequest(http.MethodPost, "http://localhost:8000/all", bytes.NewBuffer(jsonStr))
-			recorder := httptest.NewRecorder()
+			repo.On("Get", context.Background()).Return(testCase.expectedUrls, nil)
 
-			service.GetAllUrl(recorder, req)
-			resp := recorder.Result()
-			require.NotNil(t, resp)
-
-			body, err := ioutil.ReadAll(resp.Body)
+			resUrls, err := service.GetAllUrl(context.Background())
 			require.NoError(t, err)
-			defer resp.Body.Close()
 
-			expectedBody, err := json.Marshal(testCase.expectedUrls)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-			require.Equal(t, string(expectedBody), string(body))
+			require.Equal(t, testCase.expectedUrls, resUrls)
 		})
 	}
 }
@@ -209,32 +188,21 @@ func TestUpdateUrl(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			storage := &mocks.Storage{}
-			service := service.New(storage)
+			repo := &mocks.Repository{}
+			service := service.New(repo)
+			expected := testCase.expectedUrl
 
-			storage.On("Update", testCase.expectedUrl).Return(nil)
+			repo.On("ValidateUrl", context.Background(), testCase.expectedUrl.OriginUrl).Return(true)
+			if testCase.expectedUrl.SmallUrl == "" || testCase.expectedUrl.SmallUrl == "/" {
+				repo.On("GenerateUrl", context.Background()).Return("fdfdfdh")
+				expected.SmallUrl = "fdfdfdh"
+			}
+			repo.On("Update", context.Background(), expected).Return(nil)
 
-			b, err := json.Marshal(models.Url{Id: testCase.expectedUrl.Id,
-				SmallUrl: testCase.expectedUrl.SmallUrl, OriginUrl: testCase.expectedUrl.OriginUrl})
+			resUrl, err := service.UpdateUrl(context.Background(), testCase.expectedUrl)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest(http.MethodPost, "http://localhost:8000/edit", bytes.NewBuffer(b))
-			recorder := httptest.NewRecorder()
-
-			service.UpdateUrl(recorder, req)
-			resp := recorder.Result()
-			require.NotNil(t, resp)
-
-			body, err := ioutil.ReadAll(resp.Body)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			url := models.Url{}
-			err = json.Unmarshal(body, &url)
-			require.NoError(t, err)
-
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-			require.Equal(t, testCase.expectedUrl, url)
+			require.Equal(t, expected, resUrl)
 		})
 	}
 }
@@ -285,34 +253,22 @@ func TestInsertUrl(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			storage := &mocks.Storage{}
-			service := service.New(storage)
+			repo := &mocks.Repository{}
+			service := service.New(repo)
 
-			storage.On("Insert", models.Url{
-				SmallUrl: testCase.expectedUrl.SmallUrl, OriginUrl: testCase.expectedUrl.OriginUrl,
-			}).Return(testCase.expectedUrl.Id, nil)
+			expected := testCase.expectedUrl
 
-			b, err := json.Marshal(models.Url{
-				SmallUrl: testCase.expectedUrl.SmallUrl, OriginUrl: testCase.expectedUrl.OriginUrl})
+			repo.On("ValidateUrl", context.Background(), testCase.expectedUrl.OriginUrl).Return(true)
+			if testCase.expectedUrl.SmallUrl == "" || testCase.expectedUrl.SmallUrl == "/" {
+				repo.On("GenerateUrl", context.Background()).Return("fdfdfdh")
+				expected.SmallUrl = "fdfdfdh"
+			}
+			repo.On("Insert", context.Background(), expected).Return(testCase.expectedUrl.Id, nil)
+
+			resUrl, err := service.CreateUrl(context.Background(), testCase.expectedUrl)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest(http.MethodPost, "http://localhost:8000/create", bytes.NewBuffer(b))
-			recorder := httptest.NewRecorder()
-
-			service.CreateUrl(recorder, req)
-			resp := recorder.Result()
-			require.NotNil(t, resp)
-
-			body, err := ioutil.ReadAll(resp.Body)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			url := models.Url{}
-			err = json.Unmarshal(body, &url)
-			require.NoError(t, err)
-
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-			require.Equal(t, testCase.expectedUrl, url)
+			require.Equal(t, expected, resUrl)
 		})
 	}
 }
@@ -328,20 +284,13 @@ func TestDeleteUrl(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			storage := &mocks.Storage{}
-			service := service.New(storage)
+			repo := &mocks.Repository{}
+			service := service.New(repo)
 
-			storage.On("Delete", models.Url{Id: testCase.expectedUrl.Id}).Return(nil)
+			repo.On("Delete", context.Background(), models.Url{Id: testCase.expectedUrl.Id}).Return(nil)
 
-			jsonStr, err := json.Marshal(models.Url{Id: testCase.expectedUrl.Id})
+			err := service.DeleteUrl(context.Background(), testCase.expectedUrl)
 			require.NoError(t, err)
-
-			req := httptest.NewRequest(http.MethodPost, "http://localhost:8000/delete", bytes.NewBuffer(jsonStr))
-			recorder := httptest.NewRecorder()
-
-			service.DeleteUrl(recorder, req)
-			resp := recorder.Result()
-			require.NotNil(t, resp)
 		})
 	}
 }

@@ -1,7 +1,6 @@
 package models
 
 import (
-	"errors"
 	"time"
 )
 
@@ -12,15 +11,3 @@ type Url struct {
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 	UpdateAt  time.Time `json:"updated_at" db:"updated_at"`
 }
-
-type NotFound struct {
-}
-
-
-
-func (m NotFound) Error() string {
-	return "not found"
-}
-
-var ErrNotFound = errors.New("not found")
-var ErrCannotUnmarshal = errors.New("cannot unmarshal json")

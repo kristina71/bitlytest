@@ -94,7 +94,7 @@ func (s *Storage) GetBySmallUrl(ctx context.Context, url models.Url) (models.Url
 	err = s.db.Get(&url, query, args...)
 
 	if err == sql.ErrNoRows {
-		return models.Url{}, errors.WithStack(models.NotFound{})
+		return models.Url{}, errors.WithStack(models.NotFoundError())
 	}
 
 	return url, err

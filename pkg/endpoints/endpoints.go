@@ -140,8 +140,8 @@ func reportError(err error, w http.ResponseWriter) {
 		switch {
 		case errors.As(err, &models.NotFound{}):
 			http.Error(w, err.Error(), http.StatusNotFound)
-		/*case errors.Is(err, models.ErrCannotUnmarshal):
-		http.Error(w, err.Error(), http.StatusNotFound)*/
+		case errors.As(err, &models.BadRequest{}):
+			http.Error(w, err.Error(), http.StatusBadRequest)
 		default:
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}

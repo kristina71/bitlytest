@@ -32,7 +32,7 @@ func (s Service) CreateUrl(ctx context.Context, url models.Url) (models.Url, err
 	url = trimUrl(url)
 
 	if !s.repo.ValidateUrl(ctx, url.OriginUrl) {
-		return url, errors.New("invalid origin url")
+		return url, models.BadRequestError("invalid origin url")
 	}
 
 	if url.SmallUrl == "" {
